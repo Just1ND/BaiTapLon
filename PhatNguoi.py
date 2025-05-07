@@ -1,68 +1,80 @@
 import datetime
 import time
+import pytesseract
+from PIL import Image
+from io import BytesIO
+import sys
+import io
+
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-# Ham thuc hien tra cuu phat nguoi
 def run_tra_cuu():
-    print("Dang mo trinh duyet va tai trang...")
+    print("Đang mở trình duyệt và tải trang...")
 
-    # Mo trinh duyet Chrome (can cai ChromeDriver tuong ung voi trinh duyet)
     driver = webdriver.Chrome()
-
-    # Mo trang tra cuu
     driver.get("https://www.csgt.vn/tra-cuu-phuong-tien-vi-pham.html")
 
-    # Doi toi khi truong nhap bien so xuat hien (toi da 60 giay)
     try:
         WebDriverWait(driver, 60).until(
             EC.presence_of_element_located((By.ID, "BienKiemSoat"))
         )
     except:
-        print("Khong the tai duoc trang. Thu lai sau.")
+        print("Không thể tải được trang. Thử lại sau.")
         driver.quit()
         return
 
-    # Nhap thong tin bien so va loai xe
-    driver.find_element(By.ID, "BienKiemSoat").send_keys("29A12345")
-    driver.find_element(By.ID, "LoaiXe").send_keys("O to")
+    driver.find_element(By.ID, "BienKiemSoat").send_keys("30A12345")
+    driver.find_element(By.ID, "LoaiXe").send_keys("Ô tô")
 
-    # Can nguoi dung tu nhap captcha va bam nut tra cuu
-    input("Vui long nhap captcha va bam nut 'Tra cuu' tren trinh duyet, sau do nhan Enter tai day de tiep tuc...")
+    # --- Xử lý Captcha ---
+    captcha_element = driver.find_element(By.ID, "captchaImage")
+    captcha_image = captcha_element.screenshot_as_png
+    image = Image.open(BytesIO(captcha_image))
 
-    # Doi ket qua hien ra
-    time.sleep(30)  # Co the giam xuong neu ket noi nhanh
+    # OCR không cần tiền xử lý
+    captcha_text = pytesseract.image_to_string(image, config='--psm 8').strip()
+    captcha_text = ''.join(filter(str.isalnum, captcha_text))  # loại bỏ ký tự lạ
+    print(f"Mã Captcha nhận dạng: {captcha_text}")
 
-    # Tim cac ket qua tra ve
+    # Điền captcha và bấm nút "Tra cứu"
+    captcha_input = driver.find_element(By.ID, "CaptchaInput")
+    captcha_input.send_keys(captcha_text)
+    driver.find_element(By.ID, "btnTraCuu").click()
+
+    # Đợi kết quả hiện ra
+    time.sleep(10)
+
     results = driver.find_elements(By.CLASS_NAME, "btnTraCuu")
     if results:
-        print("Ket qua phat nguoi:")
+        print("Kết quả phạt nguội:")
         for result in results:
             print(result.text.strip())
     else:
-        print("Khong co ket qua hoac captcha sai.")
+        print("Không có kết quả hoặc captcha sai.")
 
-    # Dong trinh duyet
     driver.quit()
 
-# Ham cho den dung gio (vi du: 6 hoac 12)
+# Hàm cho đến đúng giờ (ví dụ: 6h hoặc 12h)
 def wait_until(target_hour):
     while True:
         now = datetime.datetime.now()
-        # Neu dung gio va phut 0 (vi du: 6:00 hoac 12:00)
+        # Nếu đúng giờ và phút 0 (ví dụ: 6:00 hoặc 12:00)
         if now.hour == target_hour and now.minute == 0:
-            print(f"\n--- Bat dau tra cuu luc {target_hour}:00 ---")
+            print(f"\n--- Bắt đầu tra cứu lúc {target_hour}:00 ---")
             run_tra_cuu()
-            print(f"--- Hoan thanh tra cuu luc {target_hour}:00 ---\n")
-            time.sleep(60)  # Cho qua phut hien tai de tranh chay lai
+            print(f"--- Hoàn thành tra cứu lúc {target_hour}:00 ---\n")
+            time.sleep(60)  # Chờ qua phút hiện tại để tránh chạy lại
         else:
-            time.sleep(20)  # Kiem tra lai moi 20 giay
+            time.sleep(20)  # Kiểm tra lại mỗi 20 giây
 
-# Chuong trinh chinh
+# Chương trình chính
 if __name__ == "__main__":
-    print("Dang chay... Se tu dong tra cuu luc 6h va 12h hang ngay.")
+    print("Đang chạy... Sẽ tự động tra cứu lúc 6h và 12h hàng ngày.")
     while True:
-        wait_until(6)
-        wait_until(12)
+        wait_until(6)  # Chạy vào lúc 6h sáng
+        wait_until(12)  # Chạy vào lúc 12h trưa
